@@ -11,6 +11,21 @@ import bleach
 import logging
 import sys
 from datetime import datetime, timedelta
+
+# Load environment variables from parent .env files if available
+try:
+    from dotenv import load_dotenv, find_dotenv
+except ImportError:
+    load_dotenv = None
+    find_dotenv = None
+
+if load_dotenv and find_dotenv:
+    env_path = find_dotenv()
+    if env_path:
+        load_dotenv(env_path)
+        print(f"Loaded environment from {env_path}")
+    else:
+        print("No .env file found in parent directories.")
 from database import (
     init_database, register_user, authenticate_user, get_user, get_user_by_id,
     update_last_login, increment_login_attempts, reset_login_attempts,
@@ -117,8 +132,17 @@ if load_dotenv:
         app.logger.info(f"Loaded environment from {env_path}")
 
 # Ollama API configuration
-OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', '').strip() or os.environ.get('OLLAMAAPIURL', '').strip()
-OLLAMA_API_KEY = os.environ.get('OLLAMA_API_KEY', '').strip() or os.environ.get('OLLAMAKEY', '').strip()
+OLLAMA_API_URL = (
+    os.environ.get('OLLAMA_API_URL', '').strip()
+    or os.environ.get('OLLAMAAPIURL', '').strip()
+    or os.environ.get('OLLAMA_URL', '').strip()
+    or os.environ.get('OLLAMAURL', '').strip()
+)
+OLLAMA_API_KEY = (
+    os.environ.get('OLLAMA_API_KEY', '').strip()
+    or os.environ.get('OLLAMAKEY', '').strip()
+    or os.environ.get('API_KEY', '').strip()
+)
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma4:e4b')
 
 if not OLLAMA_API_URL:
@@ -126,7 +150,10 @@ if not OLLAMA_API_URL:
         OLLAMA_API_URL = 'http://localhost:11434/api/generate'
         app.logger.warning('OLLAMA_API_URL is not set. Using localhost fallback for local development.')
     else:
-        app.logger.error('OLLAMA_API_URL is not set. The app cannot connect to the Ollama AI service without configuration.')
+        app.logger.warning(
+            'OLLAMA_API_URL is not set. The app cannot connect to the Ollama AI service without configuration. '
+            'Please set OLLAMA_API_URL, OLLAMAURL, or OLLAMAAPIURL in Render.'
+        )
 
 # -----------------------------
 # Error Handlers
@@ -297,8 +324,10 @@ def chat():
         app.logger.info(f"Chat request from {current_user.email}: {user_input[:50]}...")
 
         if not OLLAMA_API_URL:
-            app.logger.error('Cannot process chat request because OLLAMA_API_URL is not configured.')
-            return jsonify({"error": "AI service endpoint not configured. Please set OLLAMA_API_URL (or OLLAMAAPIURL)."}), 503
+            app.logger.error('Cannot process chat request because no Ollama API endpoint is configured.')
+            return jsonify({
+                "error": "AI service endpoint not configured. Please set OLLAMA_API_URL, OLLAMAURL, or OLLAMAAPIURL."
+            }), 503
 
         payload = {
             "model": OLLAMA_MODEL,

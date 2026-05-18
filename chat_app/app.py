@@ -2,10 +2,34 @@ from flask import Flask, render_template, request, jsonify
 import os
 import requests
 
+# Load .env from parent directories if available
+try:
+    from dotenv import load_dotenv, find_dotenv
+except ImportError:
+    load_dotenv = None
+    find_dotenv = None
+
+if load_dotenv and find_dotenv:
+    env_path = find_dotenv()
+    if env_path:
+        load_dotenv(env_path)
+        print(f"Loaded environment from {env_path}")
+    else:
+        print("No .env file found in parent directories.")
+
 app = Flask(__name__)
 
-OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', '').strip() or os.environ.get('OLLAMAAPIURL', '').strip()
-OLLAMA_API_KEY = os.environ.get('OLLAMA_API_KEY', '').strip() or os.environ.get('OLLAMAKEY', '').strip()
+OLLAMA_API_URL = (
+    os.environ.get('OLLAMA_API_URL', '').strip()
+    or os.environ.get('OLLAMAAPIURL', '').strip()
+    or os.environ.get('OLLAMA_URL', '').strip()
+    or os.environ.get('OLLAMAURL', '').strip()
+)
+OLLAMA_API_KEY = (
+    os.environ.get('OLLAMA_API_KEY', '').strip()
+    or os.environ.get('OLLAMAKEY', '').strip()
+    or os.environ.get('API_KEY', '').strip()
+)
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma4:e4b')
 
 if not OLLAMA_API_URL:

@@ -17,6 +17,8 @@ services:
         value: "replace-me-with-a-secure-value"
       - key: OLLAMA_API_URL
         value: ""
+      - key: OLLAMA_URL
+        value: ""
       - key: OLLAMA_API_KEY
         value: ""
       - key: OLLAMA_MODEL

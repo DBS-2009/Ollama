@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from urllib.parse import urljoin, urlparse
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, abort
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -103,8 +104,21 @@ def is_safe_url(target):
     test_url = urlparse(urljoin(request.host_url, target))
     return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
 
+# Load .env for local development if available
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+if load_dotenv:
+    env_path = Path(__file__).resolve().parent / '.env'
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+        app.logger.info(f"Loaded environment from {env_path}")
+
 # Ollama API configuration
-OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', '').strip()
+OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', '').strip() or os.environ.get('OLLAMAAPIURL', '').strip()
+OLLAMA_API_KEY = os.environ.get('OLLAMA_API_KEY', '').strip() or os.environ.get('OLLAMAKEY', '').strip()
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma4:e4b')
 
 if not OLLAMA_API_URL:
@@ -284,7 +298,7 @@ def chat():
 
         if not OLLAMA_API_URL:
             app.logger.error('Cannot process chat request because OLLAMA_API_URL is not configured.')
-            return jsonify({"error": "AI service endpoint not configured. Please set OLLAMA_API_URL."}), 503
+            return jsonify({"error": "AI service endpoint not configured. Please set OLLAMA_API_URL (or OLLAMAAPIURL)."}), 503
 
         payload = {
             "model": OLLAMA_MODEL,
@@ -292,10 +306,15 @@ def chat():
             "stream": False
         }
 
+        headers = {"Content-Type": "application/json"}
+        if OLLAMA_API_KEY:
+            headers["Authorization"] = f"Bearer {OLLAMA_API_KEY}"
+
         try:
             response = requests.post(
                 OLLAMA_API_URL,
                 json=payload,
+                headers=headers,
                 timeout=(5, 120)
             )
         except requests.exceptions.Timeout:

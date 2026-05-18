@@ -6,3 +6,4 @@ requests
 bleach
 bcrypt
 gunicorn
+python-dotenv

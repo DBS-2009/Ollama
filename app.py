@@ -4,7 +4,8 @@ import requests
 
 app = Flask(__name__)
 
-OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', '').strip()
+OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', '').strip() or os.environ.get('OLLAMAAPIURL', '').strip()
+OLLAMA_API_KEY = os.environ.get('OLLAMA_API_KEY', '').strip() or os.environ.get('OLLAMAKEY', '').strip()
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma4:e4b')
 
 if not OLLAMA_API_URL:
@@ -19,13 +20,18 @@ def index():
 def chat():
     user_input = request.json.get('message')
     if not OLLAMA_API_URL:
-        return jsonify({"response": "AI service endpoint is not configured. Please set OLLAMA_API_URL."})
+        return jsonify({"response": "AI service endpoint is not configured. Please set OLLAMA_API_URL (or OLLAMAAPIURL)."})
+
+    headers = {"Content-Type": "application/json"}
+    if OLLAMA_API_KEY:
+        headers["Authorization"] = f"Bearer {OLLAMA_API_KEY}"
 
     response = None
     for attempt in range(2):
         try:
             response = requests.post(OLLAMA_API_URL,
                                      json={"model": OLLAMA_MODEL, "prompt": user_input, "stream": False},
+                                     headers=headers,
                                      timeout=(5, 120))
             break
         except requests.exceptions.Timeout:

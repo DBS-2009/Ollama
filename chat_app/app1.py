@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urljoin, urlparse
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, abort
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_limiter import Limiter
@@ -95,6 +96,17 @@ def validate_email(email):
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
+# URL safety helpers for redirects
+
+def is_safe_url(target):
+    ref_url = urlparse(request.host_url)
+    test_url = urlparse(urljoin(request.host_url, target))
+    return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
+
+# Ollama API configuration
+OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', 'http://localhost:11434/api/generate')
+OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma4:e4b')
+
 # -----------------------------
 # Error Handlers
 # -----------------------------
@@ -153,7 +165,9 @@ def login():
             flash("Welcome back!", "success")
             
             next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for("index"))
+            if next_page and is_safe_url(next_page) and next_page != url_for('chat'):
+                return redirect(next_page)
+            return redirect(url_for("index"))
         else:
             increment_login_attempts(email)
             
@@ -260,46 +274,75 @@ def chat():
         
         save_message(conversation_id, 'user', user_input)
         app.logger.info(f"Chat request from {current_user.email}: {user_input[:50]}...")
-        
+
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": user_input,
+            "stream": False
+        }
+
         try:
             response = requests.post(
-                "http://localhost:11434/api/generate",
-                json={"model": "gemma4:e4b", "prompt": user_input, "stream": False},
+                OLLAMA_API_URL,
+                json=payload,
                 timeout=(5, 120)
             )
         except requests.exceptions.Timeout:
             app.logger.warning("Ollama API timeout on first attempt, retrying once")
             response = requests.post(
-                "http://localhost:11434/api/generate",
-                json={"model": "gemma4:e4b", "prompt": user_input, "stream": False},
+                OLLAMA_API_URL,
+                json=payload,
                 timeout=(5, 120)
             )
 
         if response.status_code != 200:
-            app.logger.error(f"Ollama API error: {response.status_code}")
+            app.logger.error(
+                f"Ollama API error {response.status_code}: {response.text.strip()}"
+            )
             return jsonify({"error": "AI service temporarily unavailable"}), 503
-        
-        response_json = response.json()
+
+        try:
+            response_json = response.json()
+        except ValueError:
+            app.logger.error(f"Ollama API returned invalid JSON: {response.text.strip()}")
+            return jsonify({"error": "Invalid response from AI service"}), 503
+
         ai_response = None
 
         if isinstance(response_json, dict):
             ai_response = response_json.get("response")
             if not ai_response:
                 ai_response = response_json.get("generated_text")
-            if not ai_response and response_json.get('output'):
+            if not ai_response:
                 output = response_json.get('output')
                 if isinstance(output, list) and len(output) > 0:
                     first = output[0]
                     if isinstance(first, dict):
                         ai_response = first.get('content') or first.get('text')
                         if isinstance(ai_response, list) and len(ai_response) > 0:
-                            ai_response = ai_response[0].get('text') if isinstance(ai_response[0], dict) else ai_response[0]
+                            first_item = ai_response[0]
+                            if isinstance(first_item, dict):
+                                ai_response = first_item.get('text')
+                            else:
+                                ai_response = first_item
                 elif isinstance(output, str):
                     ai_response = output
-        
+        elif isinstance(response_json, list) and len(response_json) > 0:
+            first_item = response_json[0]
+            if isinstance(first_item, dict):
+                ai_response = first_item.get("response") or first_item.get("generated_text")
+                if not ai_response and first_item.get('output'):
+                    output = first_item['output']
+                    if isinstance(output, str):
+                        ai_response = output
+                    elif isinstance(output, list) and len(output) > 0:
+                        sub = output[0]
+                        if isinstance(sub, dict):
+                            ai_response = sub.get('content') or sub.get('text')
+
         if not ai_response:
             ai_response = "Sorry, I couldn't generate a response."
-        
+
         save_message(conversation_id, 'assistant', ai_response)
         return jsonify({
             "response": ai_response,

@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urljoin, urlparse
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, abort
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_limiter import Limiter
@@ -95,6 +96,13 @@ def validate_email(email):
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
+# URL safety helpers for redirects
+
+def is_safe_url(target):
+    ref_url = urlparse(request.host_url)
+    test_url = urlparse(urljoin(request.host_url, target))
+    return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
+
 # Ollama API configuration
 OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', 'http://localhost:11434/api/generate')
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma4:e4b')
@@ -157,7 +165,9 @@ def login():
             flash("Welcome back!", "success")
             
             next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for("index"))
+            if next_page and is_safe_url(next_page) and next_page != url_for('chat'):
+                return redirect(next_page)
+            return redirect(url_for("index"))
         else:
             increment_login_attempts(email)
             

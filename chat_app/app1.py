@@ -12,6 +12,8 @@ import logging
 import sys
 from datetime import datetime, timedelta
 
+app = Flask(__name__)
+
 # Load environment variables from parent .env files if available
 try:
     from dotenv import load_dotenv, find_dotenv
@@ -23,9 +25,9 @@ if load_dotenv and find_dotenv:
     env_path = find_dotenv()
     if env_path:
         load_dotenv(env_path)
-        print(f"Loaded environment from {env_path}")
+        app.logger.info(f"Loaded environment from {env_path}")
     else:
-        print("No .env file found in parent directories.")
+        app.logger.info("No .env file found in parent directories.")
 from database import (
     init_database, register_user, authenticate_user, get_user, get_user_by_id,
     update_last_login, increment_login_attempts, reset_login_attempts,
@@ -121,15 +123,18 @@ def is_safe_url(target):
 
 # Load .env for local development if available
 try:
-    from dotenv import load_dotenv
+    from dotenv import load_dotenv, find_dotenv
 except ImportError:
     load_dotenv = None
+    find_dotenv = None
 
-if load_dotenv:
-    env_path = Path(__file__).resolve().parent / '.env'
-    if env_path.exists():
-        load_dotenv(dotenv_path=env_path)
+if load_dotenv and find_dotenv:
+    env_path = find_dotenv()
+    if env_path:
+        load_dotenv(env_path)
         app.logger.info(f"Loaded environment from {env_path}")
+    else:
+        app.logger.info("No .env file found in parent directories.")
 
 # Ollama API configuration
 OLLAMA_API_URL = (

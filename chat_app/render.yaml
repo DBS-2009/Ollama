@@ -15,6 +15,10 @@ services:
         value: "true"
       - key: SECRET_KEY
         value: "replace-me-with-a-secure-value"
+      - key: OLLAMA_API_URL
+        value: ""
+      - key: OLLAMA_MODEL
+        value: "gemma4:e4b"
       - key: DATABASE_URL
         value: ""
 

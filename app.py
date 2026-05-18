@@ -1,7 +1,15 @@
 from flask import Flask, render_template, request, jsonify
+import os
 import requests
 
 app = Flask(__name__)
+
+OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', '').strip()
+OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma4:e4b')
+
+if not OLLAMA_API_URL:
+    OLLAMA_API_URL = 'http://localhost:11434/api/generate'
+    app.logger.warning('OLLAMA_API_URL is not set. Using localhost fallback for local development.')
 
 @app.route('/')
 def index():
@@ -10,12 +18,14 @@ def index():
 @app.route('/chat', methods=['POST'])
 def chat():
     user_input = request.json.get('message')
-    # Example using local Ollama serving Gemma 4
+    if not OLLAMA_API_URL:
+        return jsonify({"response": "AI service endpoint is not configured. Please set OLLAMA_API_URL."})
+
     response = None
     for attempt in range(2):
         try:
-            response = requests.post('http://localhost:11434/api/generate', 
-                                     json={"model": "gemma4:e4b", "prompt": user_input, "stream": False},
+            response = requests.post(OLLAMA_API_URL,
+                                     json={"model": OLLAMA_MODEL, "prompt": user_input, "stream": False},
                                      timeout=(5, 120))
             break
         except requests.exceptions.Timeout:

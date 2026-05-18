@@ -104,8 +104,15 @@ def is_safe_url(target):
     return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
 
 # Ollama API configuration
-OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', 'http://localhost:11434/api/generate')
+OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', '').strip()
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'gemma4:e4b')
+
+if not OLLAMA_API_URL:
+    if os.environ.get('FLASK_DEBUG', '').lower() in ['1', 'true', 'yes'] or os.environ.get('DEBUG', '').lower() in ['1', 'true', 'yes']:
+        OLLAMA_API_URL = 'http://localhost:11434/api/generate'
+        app.logger.warning('OLLAMA_API_URL is not set. Using localhost fallback for local development.')
+    else:
+        app.logger.error('OLLAMA_API_URL is not set. The app cannot connect to the Ollama AI service without configuration.')
 
 # -----------------------------
 # Error Handlers
@@ -274,6 +281,10 @@ def chat():
         
         save_message(conversation_id, 'user', user_input)
         app.logger.info(f"Chat request from {current_user.email}: {user_input[:50]}...")
+
+        if not OLLAMA_API_URL:
+            app.logger.error('Cannot process chat request because OLLAMA_API_URL is not configured.')
+            return jsonify({"error": "AI service endpoint not configured. Please set OLLAMA_API_URL."}), 503
 
         payload = {
             "model": OLLAMA_MODEL,

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemma 4 AI Chat</title>
+    <title>Chats with Walter</title>
     <style>
         :root {
             --bg-primary: #0a0e27;
@@ -853,7 +853,7 @@
             <div class="chat-header">
                 <div class="chat-title-wrapper">
                     <div class="chat-title-row">
-                        <div class="chat-title" id="chatTitle">Welcome to Gemma 4 AI</div>
+                        <div class="chat-title" id="chatTitle">Welcome Human!</div>
                         <button class="theme-toggle title-edit-trigger" onclick="startConversationTitleEdit()" title="Rename current chat">
                             ✏️
                         </button>
@@ -887,7 +887,7 @@
                     <div class="input-container">
                         <textarea
                             id="userInput"
-                            placeholder="Ask Gemma anything... (Press Enter to send, Shift+Enter for new line)"
+                            placeholder="Ask Walter anything... (Press Enter to send, Shift+Enter for new line)"
                             rows="1"
                             maxlength="5000"
                         ></textarea>
@@ -925,7 +925,7 @@
             applyTheme(savedTheme);
 
             // Set welcome message with formatting
-            const welcomeMessage = "Hello! I'm Gemma 4, your AI assistant. I can help with math like $E = mc^2$ and $$\\frac{d}{dx} x^2 = 2x$$. How can I help you today?";
+            const welcomeMessage = "Hello! I'm Walter, your AI assistant. How can I help you today?";
             document.getElementById('welcomeMessage').innerHTML = formatMessageContent('ai', welcomeMessage);
         });
 
@@ -1053,7 +1053,7 @@
             document.getElementById('chatTitle').textContent = 'New Chat';
             document.getElementById('chatbox').innerHTML = `
                 <div class="message ai">
-                    <div class="message-bubble">${formatMessageContent('ai', "Hello! I'm Gemma 4, your AI assistant. I can help with math like $E = mc^2$ and $$\\frac{d}{dx} x^2 = 2x$$. How can I help you today?")}</div>
+                    <div class="message-bubble">${formatMessageContent('ai', "Hello! I'm Walter, your AI assistant. I can help with math like $E = mc^2$ and $$\\frac{d}{dx} x^2 = 2x$$. How can I help you today?")}</div>
                     <div class="message-timestamp">Just now</div>
                 </div>
             `;
@@ -1212,7 +1212,7 @@
             const chatbox = document.getElementById('chatbox');
             const thinkingDiv = document.createElement('div');
             thinkingDiv.className = 'thinking';
-            thinkingDiv.textContent = 'Gemma is thinking...';
+            thinkingDiv.textContent = 'Walter is thinking...';
             chatbox.appendChild(thinkingDiv);
             chatbox.scrollTop = chatbox.scrollHeight;
             return thinkingDiv;
@@ -1237,10 +1237,10 @@
                 if (response.ok) {
                     if (currentConversationId === conversationId) {
                         currentConversationId = null;
-                        document.getElementById('chatTitle').textContent = 'Welcome to Gemma 4 AI';
+                        document.getElementById('chatTitle').textContent = 'Welcome Human!';
                         document.getElementById('chatbox').innerHTML = `
                             <div class="message ai">
-                                <div class="message-bubble">${formatMessageContent('ai', "Hello! I'm Gemma 4, your AI assistant. I can help with math like $E = mc^2$ and $$\\frac{d}{dx} x^2 = 2x$$. How can I help you today?")}</div>
+                                <div class="message-bubble">${formatMessageContent('ai', "Hello! I'm Walter, your AI assistant. How can I help you today?")}</div>
                                 <div class="message-timestamp">Just now</div>
                             </div>
                         `;
@@ -1516,10 +1516,19 @@
             };
 
             lines.forEach(line => {
+                const headingMatch = line.match(/^\s*#{1,6}\s+(.+)$/);
+                const hrMatch = line.match(/^\s*([-_*])(?:\s*\1){2,}\s*$/);
                 const ulMatch = line.match(/^\s*[-+*]\s+(.*)$/);
                 const olMatch = line.match(/^\s*\d+\.\s+(.*)$/);
 
-                if (ulMatch) {
+                if (headingMatch) {
+                    closeList();
+                    const level = Math.min(6, line.trim().split(' ')[0].length);
+                    parsedLines.push(`<h${level}>${headingMatch[1].trim()}</h${level}>`);
+                } else if (hrMatch) {
+                    closeList();
+                    parsedLines.push('<hr>');
+                } else if (ulMatch) {
                     if (inListType !== 'ul') {
                         closeList();
                         inListType = 'ul';
@@ -1556,7 +1565,7 @@
             }
 
             return blocks.map(block => {
-                if (/^<(ul|ol|pre|div|table)>/.test(block)) {
+                if (/^<(ul|ol|pre|div|table|h[1-6]|hr)(\s|>)/.test(block)) {
                     return block;
                 }
                 return `<p>${block.replace(/\n/g, '<br>')}</p>`;

@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, abort
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_limiter import Limiter
@@ -18,7 +19,7 @@ from database import (
 )
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key_change_this_in_production"  # Replace with something secure
+app.secret_key = os.environ.get('SECRET_KEY', "your_secret_key_change_this_in_production")  # Replace with something secure
 
 # Configure logging
 logging.basicConfig(
@@ -33,6 +34,13 @@ app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_USE_SIGNER'] = True
 Session(app)
+
+# Enable Gunicorn log propagation on Render or other WSGI hosts
+app.config['LOG_WITH_GUNICORN'] = os.getenv('LOG_WITH_GUNICORN', 'true').lower() in ['1', 'true', 'yes']
+if app.config['LOG_WITH_GUNICORN']:
+    gunicorn_error_logger = logging.getLogger('gunicorn.error')
+    app.logger.handlers.extend(gunicorn_error_logger.handlers)
+    app.logger.setLevel(logging.INFO)
 
 # Configure Flask-Limiter
 limiter = Limiter(
@@ -501,5 +509,9 @@ def user_stats():
         return jsonify({"error": "Failed to load statistics"}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get('PORT', 5000)),
+        debug=os.environ.get('FLASK_DEBUG', 'false').lower() in ['1', 'true', 'yes']
+    )
  
